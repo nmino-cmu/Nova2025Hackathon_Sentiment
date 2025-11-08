@@ -1,0 +1,11 @@
+{
+  "sources": [
+    "source1.com",
+    "source2.com"
+  ],
+  "raw_data": [
+    "Opinion 1",
+    "Statistic 1",
+    "Opinion 2"
+  ]
+}
