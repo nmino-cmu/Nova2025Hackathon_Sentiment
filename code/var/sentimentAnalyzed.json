@@ -1,0 +1,20 @@
+{
+  "rankings": [
+    {
+      "stock": "AAPL",
+      "score": 92,
+      "sentiment": "positive"
+    },
+    {
+      "stock": "GOOGL",
+      "score": 78,
+      "sentiment": "neutral"
+    },
+    {
+      "stock": "MSFT",
+      "score": 88,
+      "sentiment": "positive"
+    }
+  ],
+  "overall_sentiment": "positive"
+}

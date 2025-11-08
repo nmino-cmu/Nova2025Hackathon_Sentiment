@@ -14,6 +14,7 @@ The app uses a multi-stage AI pipeline:
 ## Setup
 Dependencies Required:
 $pip install -r requirements.txt
+
 $npm install
 
 ### Backend (Flask)

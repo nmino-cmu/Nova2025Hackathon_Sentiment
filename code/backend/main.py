@@ -1,68 +1,96 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import time
-from typing import Optional
+import json
+import os
+import subprocess
+from pathlib import Path
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for React frontend
 
-# Placeholder functions for your AI pipeline
-# Replace these with actual imports from your Python files
-def run_agent_doc(prompt: str):
-    """
-    This will call your agentDoc.py file
-    Uses Agentuity and Tavily to scrape content
-    """
-    # TODO: Replace with actual agentDoc import and call
-    # from agentDoc import scrape_data
-    # return scrape_data(prompt)
-    return {
-        "sources": ["source1.com", "source2.com"],
-        "raw_data": ["Opinion 1", "Statistic 1", "Opinion 2"]
-    }
+VAR_DIR = Path(__file__).parent.parent / "var"
+AGENT_FINDINGS_PATH = VAR_DIR / "agentFindings.json"
+SENTIMENT_ANALYZED_PATH = VAR_DIR / "sentimentAnalyzed.json"
+FINAL_BRIEF_PATH = VAR_DIR / "finalBrief.json"
 
-def run_refine_doc(prompt: str, agent_data: dict):
-    """
-    This will call your refineDoc.py file
-    Uses Openrouter's Claude to process the scraped data
-    """
-    # TODO: Replace with actual refineDoc import and call
-    # from refineDoc import refine_data
-    # return refine_data(prompt, agent_data)
-    return {
-        "processed_opinions": ["Refined opinion 1", "Refined opinion 2"],
-        "key_statistics": {"metric1": 85, "metric2": 92}
-    }
+# Ensure var directory exists
+VAR_DIR.mkdir(exist_ok=True)
 
-def run_rank_doc(prompt: str, refined_data: dict):
+def run_agent_scrape(prompt: str):
     """
-    This will call your rankDoc.py file
-    Uses Openrouter's Claude for sentiment analysis and ranking
+    Calls agent.py to scrape data using Agentuity and Tavily
+    Writes results to agentFindings.json
     """
-    # TODO: Replace with actual rankDoc import and call
-    # from rankDoc import rank_data
-    # return rank_data(prompt, refined_data)
-    return {
-        "rankings": [
-            {"stock": "AAPL", "score": 92, "sentiment": "positive"},
-            {"stock": "GOOGL", "score": 78, "sentiment": "neutral"},
-            {"stock": "MSFT", "score": 88, "sentiment": "positive"}
-        ],
-        "overall_sentiment": "positive"
-    }
+    try:
+        # Write prompt to a temp file or pass as argument
+        # Call your agent.py script
+        subprocess.run(["python", "agent.py", prompt], check=True, cwd=Path(__file__).parent)
+        
+        # Read the output from agentFindings.json
+        with open(AGENT_FINDINGS_PATH, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error in agent scrape: {e}")
+        # Return mock data if agent.py doesn't exist yet
+        mock_data = {
+            "sources": ["source1.com", "source2.com"],
+            "raw_data": ["Opinion 1", "Statistic 1", "Opinion 2"]
+        }
+        with open(AGENT_FINDINGS_PATH, 'w') as f:
+            json.dump(mock_data, f, indent=2)
+        return mock_data
 
-def run_brief_doc(prompt: str, ranked_data: dict):
+def run_sentiment_analysis(prompt: str):
     """
-    This will call your briefDoc.py file
-    Uses Retell to voice out the report and generate brief
+    Calls sentiment analysis script (sentiment.py or rankDoc.py)
+    Reads from agentFindings.json
+    Writes results to sentimentAnalyzed.json
     """
-    # TODO: Replace with actual briefDoc import and call
-    # from briefDoc import generate_brief
-    # return generate_brief(prompt, ranked_data)
-    return {
-        "brief": "Based on current market sentiment and analysis, the top recommendations are...",
-        "audio_url": "https://example.com/audio/report.mp3"
-    }
+    try:
+        # Call your sentiment analysis script
+        subprocess.run(["python", "sentiment.py", prompt], check=True, cwd=Path(__file__).parent)
+        
+        # Read the output from sentimentAnalyzed.json
+        with open(SENTIMENT_ANALYZED_PATH, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error in sentiment analysis: {e}")
+        # Return mock data if sentiment.py doesn't exist yet
+        mock_data = {
+            "rankings": [
+                {"stock": "AAPL", "score": 92, "sentiment": "positive"},
+                {"stock": "GOOGL", "score": 78, "sentiment": "neutral"},
+                {"stock": "MSFT", "score": 88, "sentiment": "positive"}
+            ],
+            "overall_sentiment": "positive"
+        }
+        with open(SENTIMENT_ANALYZED_PATH, 'w') as f:
+            json.dump(mock_data, f, indent=2)
+        return mock_data
+
+def run_brief_creation(prompt: str):
+    """
+    Calls brief.py to generate report and voice output with Retell
+    Reads from sentimentAnalyzed.json
+    Writes results to finalBrief.json
+    """
+    try:
+        # Call your brief creation script
+        subprocess.run(["python", "brief.py", prompt], check=True, cwd=Path(__file__).parent)
+        
+        # Read the output from finalBrief.json
+        with open(FINAL_BRIEF_PATH, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error in brief creation: {e}")
+        # Return mock data if brief.py doesn't exist yet
+        mock_data = {
+            "brief": "Based on current market sentiment and analysis, the top recommendations are...",
+            "audio_url": None
+        }
+        with open(FINAL_BRIEF_PATH, 'w') as f:
+            json.dump(mock_data, f, indent=2)
+        return mock_data
 
 @app.route('/')
 def root():
@@ -81,11 +109,10 @@ def health_check():
 @app.route('/analyze', methods=['POST'])
 def analyze_stocks():
     """
-    Main endpoint that runs the entire AI pipeline:
-    1. agentDoc - Scrapes data using Agentuity and Tavily
-    2. refineDoc - Processes data with Openrouter's Claude
-    3. rankDoc - Sentiment analysis and ranking with Claude
-    4. briefDoc - Generate report and voice output with Retell
+    Main endpoint that runs the 3-stage AI pipeline:
+    1. Agent Scrape - Scrapes data using Agentuity and Tavily → agentFindings.json
+    2. Sentiment Analysis - Analyzes sentiment with Claude → sentimentAnalyzed.json
+    3. Brief Creation - Generates report and voice output → finalBrief.json
     """
     try:
         data = request.get_json()
@@ -94,26 +121,20 @@ def analyze_stocks():
         if not prompt:
             return jsonify({"error": "Prompt is required"}), 400
         
-        # Step 1: Agent scraping for data
-        agent_data = run_agent_doc(prompt)
+        agent_data = run_agent_scrape(prompt)
         
-        # Step 2: Refine the data
-        refined_data = run_refine_doc(prompt, agent_data)
+        sentiment_data = run_sentiment_analysis(prompt)
         
-        # Step 3: Rank and analyze sentiment
-        ranked_data = run_rank_doc(prompt, refined_data)
-        
-        # Step 4: Generate brief and voice output
-        brief_result = run_brief_doc(prompt, ranked_data)
+        brief_result = run_brief_creation(prompt)
         
         return jsonify({
             "status": "success",
             "prompt": prompt,
             "agent_data": agent_data,
-            "refined_data": refined_data,
-            "ranked_data": ranked_data,
+            "sentiment_data": sentiment_data,
             "brief": brief_result.get("brief"),
-            "audio_url": brief_result.get("audio_url")
+            "audio_url": brief_result.get("audio_url"),
+            "rankings": sentiment_data.get("rankings", [])
         })
         
     except Exception as e:
@@ -121,4 +142,5 @@ def analyze_stocks():
 
 if __name__ == "__main__":
     print("Starting Flask server on http://localhost:8000")
+    print(f"JSON files will be stored in: {VAR_DIR.absolute()}")
     app.run(host="0.0.0.0", port=8000, debug=True)
