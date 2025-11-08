@@ -7,18 +7,16 @@ import { Input } from "@/components/ui/input"
 import { Loader2 } from "lucide-react"
 
 interface StockRecommendation {
-  stock: string
+  ticker: string
   score: number
   sentiment: string
+  rank: number
 }
 
 interface AnalysisResult {
   status: string
-  prompt: string
-  ranked_data?: {
-    rankings: StockRecommendation[]
-    overall_sentiment: string
-  }
+  prompt?: string
+  rankings?: StockRecommendation[]
   brief?: string
   audio_url?: string
 }
@@ -237,7 +235,6 @@ function StockTile({ stock }: { stock: (typeof detailedStocks)[0] }) {
 }
 
 export default function Page() {
-  const [count, setCount] = useState(0)
   const [scrollY, setScrollY] = useState(0)
   const [prompt, setPrompt] = useState("")
   const [loading, setLoading] = useState(false)
@@ -261,7 +258,10 @@ export default function Page() {
     setResult(null)
 
     try {
-      const response = await fetch("http://localhost:8000/analyze", {
+      console.log("[v0] Starting analysis pipeline...")
+
+      // Step 1: Call Flask backend for Python AI pipeline
+      const flaskResponse = await fetch("http://localhost:8000/analyze", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -269,13 +269,40 @@ export default function Page() {
         body: JSON.stringify({ prompt }),
       })
 
-      if (!response.ok) {
-        throw new Error("Analysis failed")
+      if (!flaskResponse.ok) {
+        throw new Error("Analysis pipeline failed")
       }
 
-      const data = await response.json()
-      setResult(data)
+      const flaskData = await flaskResponse.json()
+      console.log("[v0] Flask pipeline complete:", flaskData)
+
+      // Step 2: Call brief generation (Express server via Next.js API)
+      const briefResponse = await fetch("/api/brief", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userPrompt: prompt }),
+      })
+
+      let briefData = null
+      if (briefResponse.ok) {
+        briefData = await briefResponse.json()
+        console.log("[v0] Brief generation complete:", briefData)
+      } else {
+        console.warn("[v0] Brief generation failed, continuing without it")
+      }
+
+      // Combine results
+      setResult({
+        status: "success",
+        prompt: prompt,
+        rankings: flaskData.rankings || [],
+        brief: briefData?.text || null,
+        audio_url: briefData?.audio_url || null,
+      })
     } catch (err) {
+      console.error("[v0] Analysis error:", err)
       setError(err instanceof Error ? err.message : "An error occurred")
     } finally {
       setLoading(false)
@@ -400,7 +427,7 @@ export default function Page() {
               )}
 
               {/* Rankings */}
-              {result.ranked_data && (
+              {result.rankings && result.rankings.length > 0 && (
                 <Card
                   className="bg-card/80 backdrop-blur-sm border-2 border-accent/30 neon-border"
                   style={{ borderColor: "rgba(255, 105, 180, 0.3)" }}
@@ -409,13 +436,10 @@ export default function Page() {
                     <CardTitle className="text-2xl text-accent neon-text" style={{ fontFamily: "monospace" }}>
                       ═══ STOCK RANKINGS ═══
                     </CardTitle>
-                    <CardDescription className="text-secondary/80">
-                      Overall Sentiment: {result.ranked_data.overall_sentiment}
-                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {result.ranked_data.rankings.map((stock, idx) => (
+                      {result.rankings.map((stock, idx) => (
                         <div
                           key={idx}
                           className="flex items-center justify-between p-4 border-2 border-primary/20 rounded-lg bg-background/50"
@@ -425,10 +449,10 @@ export default function Page() {
                               className="text-3xl font-bold text-primary neon-text"
                               style={{ fontFamily: "monospace" }}
                             >
-                              #{idx + 1}
+                              #{stock.rank}
                             </div>
                             <div>
-                              <div className="text-xl font-bold text-foreground">{stock.stock}</div>
+                              <div className="text-xl font-bold text-foreground">{stock.ticker}</div>
                               <div className="text-sm text-muted-foreground capitalize">{stock.sentiment}</div>
                             </div>
                           </div>
