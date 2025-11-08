@@ -1,11 +1,10 @@
 import express from "express";
 import cors from "cors";
-
 import dotenv from "dotenv";
 
-dotenv.config({
-  path: "/home/sportsman/coding/javascript/Nova2025Hackathon_Sentiment/env.local.download",
-});
+// Load .env.local (or .env) from the project root
+dotenv.config(); // no absolute path needed
+
 
 
 type Ranked = {
@@ -250,6 +249,4 @@ app.post("/brief", async (req, res) => {
     res.status(500).json({ error: "Failed to generate brief" });
   }
 });
-
-// /read stays same as the cleaned version I showed above
 
