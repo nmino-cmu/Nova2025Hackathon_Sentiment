@@ -1,1 +1,1 @@
-# Nova2025Hackathon_HeavyFingers
+# Nova2025Hackathon_Sentiment
