@@ -1,3 +1,6 @@
 .env
 .env.local
-code/var/
+.env.local.download
+code/var/env.local.download
+.env*
+.env.local*
