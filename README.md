@@ -186,5 +186,3 @@ npm install
 ## Integration with Your Code
 
 Replace the subprocess calls in `backend/main.py` with your actual module imports once your Python files are ready. The current implementation uses subprocess for flexibility during development.
-
-Good luck with your hackathon!
